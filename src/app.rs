@@ -2,6 +2,7 @@
 
 use crate::config::Config;
 use crate::fl;
+use crate::mpris::TrackInfo;
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::alignment::{Horizontal, Vertical};
@@ -41,7 +42,6 @@ pub struct AppModel {
 pub enum Message {
     LaunchUrl(String),
     ToggleContextPage(ContextPage),
-    ToggleWatch,
     UpdateConfig(Config),
     WatchTick(u32),
 }
@@ -169,6 +169,7 @@ impl cosmic::Application for AppModel {
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<'_, Self::Message> {
         let space_s = cosmic::theme::spacing().space_s;
+        let track = TrackInfo::placeholder();
         let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
             Page::Page1 => {
                 let header = widget::row::with_capacity(2)
@@ -176,9 +177,11 @@ impl cosmic::Application for AppModel {
                     .align_y(Alignment::End)
                     .spacing(space_s);
 
-                widget::column::with_capacity(2)
+                widget::column::with_capacity(4)
                     .push(header)
-                    .push(widget::text::title3("No track playing"))
+                    .push(widget::text::title3(track.title))
+                    .push(widget::text::body(track.artist))
+                    .push(widget::text::body(track.album))
                     .spacing(space_s)
                     .height(Length::Fill)
                     .into()
@@ -274,10 +277,6 @@ impl cosmic::Application for AppModel {
         match message {
             Message::WatchTick(time) => {
                 self.time = time;
-            }
-
-            Message::ToggleWatch => {
-                self.watch_is_active = !self.watch_is_active;
             }
 
             Message::ToggleContextPage(context_page) => {
