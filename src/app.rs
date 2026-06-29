@@ -11,6 +11,7 @@ use cosmic::iced::{Alignment, Length, Subscription, futures};
 use cosmic::prelude::*;
 use cosmic::widget::{self, about::About, icon, menu, nav_bar};
 use futures::SinkExt;
+use mpris::PlayerFinder;
 use std::collections::HashMap;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
@@ -42,6 +43,10 @@ pub enum Message {
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
     RefreshTrack(TrackInfo),
+
+    PreviousTrack,
+    PlayPause,
+    NextTrack,
 }
 
 /// Create a COSMIC application from the app model
@@ -75,20 +80,10 @@ impl cosmic::Application for AppModel {
         let mut nav = nav_bar::Model::default();
 
         nav.insert()
-            .text(fl!("page-id", num = 1))
+            .text("Now Playing")
             .data::<Page>(Page::Page1)
             .icon(icon::from_name("applications-science-symbolic"))
             .activate();
-
-        nav.insert()
-            .text(fl!("page-id", num = 2))
-            .data::<Page>(Page::Page2)
-            .icon(icon::from_name("applications-system-symbolic"));
-
-        nav.insert()
-            .text(fl!("page-id", num = 3))
-            .data::<Page>(Page::Page3)
-            .icon(icon::from_name("applications-games-symbolic"));
 
         // Create the about widget
         let about = About::default()
@@ -167,55 +162,70 @@ impl cosmic::Application for AppModel {
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<'_, Self::Message> {
         let space_s = cosmic::theme::spacing().space_s;
-        let content: Element<_> =
-            match self.nav.active_data::<Page>().unwrap() {
-                Page::Page1 => {
-                    let header = widget::row::with_capacity(2)
-                        .push(widget::text::title1("COSMIC Now Playing"))
-                        .align_y(Alignment::End)
-                        .spacing(space_s);
+        let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
+            Page::Page1 => {
+                let header = widget::text::title1("COSMIC Now Playing");
 
-                    widget::column::with_capacity(5)
-                        .push_maybe(self.track.art_path().map(|path| {
-                            image(image::Handle::from_path(path)).width(120).height(120)
-                        }))
-                        .push(header)
-                        .push(widget::text::title3(self.track.title.as_str()))
-                        .push(widget::text::body(self.track.artist.as_str()))
-                        .push(widget::text::body(self.track.album.as_str()))
-                        .spacing(space_s)
-                        .height(Length::Fill)
-                        .into()
-                }
+                let album_art = self
+                    .track
+                    .art_path()
+                    .map(|path| image(image::Handle::from_path(path)).width(200).height(200));
 
-                Page::Page2 => {
-                    let header = widget::row::with_capacity(2)
-                        .push(widget::text::title1(fl!("welcome")))
-                        .push(widget::text::title3(fl!("page-id", num = 2)))
-                        .align_y(Alignment::End)
-                        .spacing(space_s);
+                let controls = widget::row::with_capacity(3)
+                    .push(widget::button::text("⏮").on_press(Message::PreviousTrack))
+                    .push(widget::button::text("⏯").on_press(Message::PlayPause))
+                    .push(widget::button::text("⏭").on_press(Message::NextTrack))
+                    .spacing(space_s);
 
-                    widget::column::with_capacity(1)
-                        .push(header)
-                        .spacing(space_s)
-                        .height(Length::Fill)
-                        .into()
-                }
+                let track_details = widget::column::with_capacity(4)
+                    .push(widget::text::title2(self.track.title.as_str()))
+                    .push(widget::text::body(self.track.artist.as_str()))
+                    .push(widget::text::body(self.track.album.as_str()))
+                    .push(controls)
+                    .spacing(space_s);
 
-                Page::Page3 => {
-                    let header = widget::row::with_capacity(2)
-                        .push(widget::text::title1(fl!("welcome")))
-                        .push(widget::text::title3(fl!("page-id", num = 3)))
-                        .align_y(Alignment::End)
-                        .spacing(space_s);
+                let content = widget::row::with_capacity(2)
+                    .push_maybe(album_art)
+                    .push(track_details.width(Length::Fill))
+                    .spacing(space_s)
+                    .align_y(Alignment::Center);
 
-                    widget::column::with_capacity(1)
-                        .push(header)
-                        .spacing(space_s)
-                        .height(Length::Fill)
-                        .into()
-                }
-            };
+                widget::column::with_capacity(2)
+                    .push(header)
+                    .push(content)
+                    .spacing(space_s)
+                    .height(Length::Fill)
+                    .into()
+            }
+
+            Page::Page2 => {
+                let header = widget::row::with_capacity(2)
+                    .push(widget::text::title1(fl!("welcome")))
+                    .push(widget::text::title3(fl!("page-id", num = 2)))
+                    .align_y(Alignment::End)
+                    .spacing(space_s);
+
+                widget::column::with_capacity(1)
+                    .push(header)
+                    .spacing(space_s)
+                    .height(Length::Fill)
+                    .into()
+            }
+
+            Page::Page3 => {
+                let header = widget::row::with_capacity(2)
+                    .push(widget::text::title1(fl!("welcome")))
+                    .push(widget::text::title3(fl!("page-id", num = 3)))
+                    .align_y(Alignment::End)
+                    .spacing(space_s);
+
+                widget::column::with_capacity(1)
+                    .push(header)
+                    .spacing(space_s)
+                    .height(Length::Fill)
+                    .into()
+            }
+        };
 
         widget::container(content)
             .width(600)
@@ -274,6 +284,28 @@ impl cosmic::Application for AppModel {
     /// on the application's async runtime.
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
+            Message::PreviousTrack => {
+                if let Ok(finder) = PlayerFinder::new() {
+                    if let Ok(player) = finder.find_active() {
+                        let _ = player.previous();
+                    }
+                }
+            }
+            Message::PlayPause => {
+                if let Ok(finder) = PlayerFinder::new() {
+                    if let Ok(player) = finder.find_active() {
+                        let _ = player.play_pause();
+                    }
+                }
+            }
+
+            Message::NextTrack => {
+                if let Ok(finder) = PlayerFinder::new() {
+                    if let Ok(player) = finder.find_active() {
+                        let _ = player.next();
+                    }
+                }
+            }
             Message::RefreshTrack(track) => {
                 self.track = track;
             }
