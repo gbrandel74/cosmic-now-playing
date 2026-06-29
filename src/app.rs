@@ -173,7 +173,6 @@ impl cosmic::Application for AppModel {
             Page::Page1 => {
                 let header = widget::row::with_capacity(2)
                     .push(widget::text::title1("COSMIC Now Playing"))
-                    .push(widget::text::title3(fl!("page-id", num = 1)))
                     .align_y(Alignment::End)
                     .spacing(space_s);
 
