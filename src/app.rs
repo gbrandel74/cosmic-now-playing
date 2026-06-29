@@ -31,6 +31,8 @@ pub struct AppModel {
     key_binds: HashMap<menu::KeyBind, MenuAction>,
     /// Configuration data that persists between application runs.
     config: Config,
+    /// Track info
+    track: TrackInfo,
     /// Time active
     time: u32,
     /// Toggle the watch subscription
@@ -120,6 +122,9 @@ impl cosmic::Application for AppModel {
                     }
                 })
                 .unwrap_or_default(),
+
+            track: TrackInfo::current(),
+
             time: 0,
             watch_is_active: false,
         };
@@ -169,7 +174,6 @@ impl cosmic::Application for AppModel {
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<'_, Self::Message> {
         let space_s = cosmic::theme::spacing().space_s;
-        let track = TrackInfo::current();
         let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
             Page::Page1 => {
                 let header = widget::row::with_capacity(2)
@@ -179,9 +183,9 @@ impl cosmic::Application for AppModel {
 
                 widget::column::with_capacity(4)
                     .push(header)
-                    .push(widget::text::title3(track.title))
-                    .push(widget::text::body(track.artist))
-                    .push(widget::text::body(track.album))
+                    .push(widget::text::title3(self.track.title.as_str()))
+                    .push(widget::text::body(self.track.artist.as_str()))
+                    .push(widget::text::body(self.track.album.as_str()))
                     .spacing(space_s)
                     .height(Length::Fill)
                     .into()
