@@ -191,7 +191,7 @@ impl cosmic::Application for AppModel {
 
                 widget::column::with_capacity(2)
                     .push(header)
-                    .push(section)
+                    .push(widget::text::title3("No track playing"))
                     .spacing(space_s)
                     .height(Length::Fill)
                     .into()
