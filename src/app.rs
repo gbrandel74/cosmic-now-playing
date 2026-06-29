@@ -229,7 +229,11 @@ impl cosmic::Application for AppModel {
                 let track_details = widget::column::with_capacity(6)
                     .push(widget::text::title2(self.track.title.as_str()))
                     .push(widget::text::body(self.track.artist.as_str()))
-                    .push(widget::text::body(self.track.album.as_str()))
+                    .push_maybe(
+                        (self.track.album != self.track.title
+                            && self.track.album != "Unknown album")
+                            .then(|| widget::text::body(self.track.album.as_str())),
+                    )
                     .push(progress_slider)
                     .push(time_row)
                     .push(controls)
