@@ -11,6 +11,7 @@ use cosmic::iced::{Alignment, Length, Subscription, futures};
 use cosmic::prelude::*;
 use cosmic::widget::{self, about::About, icon, menu, nav_bar};
 use futures::SinkExt;
+use mpris::PlaybackStatus;
 use mpris::PlayerFinder;
 use std::collections::HashMap;
 
@@ -126,7 +127,7 @@ impl cosmic::Application for AppModel {
     /// Elements to pack at the start of the header bar.
     fn header_start(&self) -> Vec<Element<'_, Self::Message>> {
         let menu_bar = menu::bar(vec![menu::Tree::with_children(
-            menu::root(fl!("view")).apply(Element::from),
+            menu::root(fl!("Now Playing")).apply(Element::from),
             menu::items(
                 &self.key_binds,
                 vec![menu::Item::Button(fl!("about"), None, MenuAction::About)],
@@ -172,9 +173,27 @@ impl cosmic::Application for AppModel {
                     .map(|path| image(image::Handle::from_path(path)).width(200).height(200));
 
                 let controls = widget::row::with_capacity(3)
-                    .push(widget::button::text("⏮").on_press(Message::PreviousTrack))
-                    .push(widget::button::text("⏯").on_press(Message::PlayPause))
-                    .push(widget::button::text("⏭").on_press(Message::NextTrack))
+                    .push(
+                        icon::from_name("media-skip-backward-symbolic")
+                            .size(22)
+                            .apply(widget::button::icon)
+                            .on_press(Message::PreviousTrack),
+                    )
+                    .push(
+                        icon::from_name(match self.track.playback_status {
+                            PlaybackStatus::Playing => "media-playback-pause-symbolic",
+                            _ => "media-playback-start-symbolic",
+                        })
+                        .size(22)
+                        .apply(widget::button::icon)
+                        .on_press(Message::PlayPause),
+                    )
+                    .push(
+                        icon::from_name("media-skip-forward-symbolic")
+                            .size(22)
+                            .apply(widget::button::icon)
+                            .on_press(Message::NextTrack),
+                    )
                     .spacing(space_s);
 
                 let track_details = widget::column::with_capacity(4)

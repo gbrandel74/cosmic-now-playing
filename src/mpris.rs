@@ -1,3 +1,4 @@
+use mpris::PlaybackStatus;
 use mpris::PlayerFinder;
 
 #[derive(Debug, Clone)]
@@ -6,6 +7,7 @@ pub struct TrackInfo {
     pub artist: String,
     pub album: String,
     pub art_url: Option<String>,
+    pub playback_status: PlaybackStatus,
 }
 
 impl TrackInfo {
@@ -15,6 +17,7 @@ impl TrackInfo {
             artist: "—".into(),
             album: "—".into(),
             art_url: None,
+            playback_status: PlaybackStatus::Stopped,
         }
     }
 
@@ -39,6 +42,9 @@ impl TrackInfo {
                 .unwrap_or_else(|| "Unknown artist".to_string()),
             album: metadata.album_name().unwrap_or("Unknown album").to_string(),
             art_url: metadata.art_url().map(|url| url.to_string()),
+            playback_status: player
+                .get_playback_status()
+                .unwrap_or(PlaybackStatus::Stopped),
         }
     }
 
