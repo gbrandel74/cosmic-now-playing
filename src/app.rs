@@ -169,7 +169,7 @@ impl cosmic::Application for AppModel {
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<'_, Self::Message> {
         let space_s = cosmic::theme::spacing().space_s;
-        let track = TrackInfo::placeholder();
+        let track = TrackInfo::current();
         let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
             Page::Page1 => {
                 let header = widget::row::with_capacity(2)
