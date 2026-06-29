@@ -172,7 +172,7 @@ impl cosmic::Application for AppModel {
         let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
             Page::Page1 => {
                 let header = widget::row::with_capacity(2)
-                    .push(widget::text::title1(fl!("welcome")))
+                    .push(widget::text::title1("COSMIC Now Playing"))
                     .push(widget::text::title3(fl!("page-id", num = 1)))
                     .align_y(Alignment::End)
                     .spacing(space_s);
@@ -260,16 +260,19 @@ impl cosmic::Application for AppModel {
         // Conditionally enables a timer that emits a message every second.
         if self.watch_is_active {
             subscriptions.push(Subscription::run(|| {
-                cosmic::iced::stream::channel(1, |mut emitter: futures::channel::mpsc::Sender<_>| async move {
-                    let mut time = 1;
-                    let mut interval = tokio::time::interval(Duration::from_secs(1));
+                cosmic::iced::stream::channel(
+                    1,
+                    |mut emitter: futures::channel::mpsc::Sender<_>| async move {
+                        let mut time = 1;
+                        let mut interval = tokio::time::interval(Duration::from_secs(1));
 
-                    loop {
-                        interval.tick().await;
-                        _ = emitter.send(Message::WatchTick(time)).await;
-                        time += 1;
-                    }
-                })
+                        loop {
+                            interval.tick().await;
+                            _ = emitter.send(Message::WatchTick(time)).await;
+                            time += 1;
+                        }
+                    },
+                )
             }));
         }
 
