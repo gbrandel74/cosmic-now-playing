@@ -81,7 +81,7 @@ impl cosmic::Application for AppModel {
 
         nav.insert()
             .text("Now Playing")
-            .data::<Page>(Page::Page1)
+            .data::<Page>(Page::NowPlaying)
             .icon(icon::from_name("applications-science-symbolic"))
             .activate();
 
@@ -163,7 +163,7 @@ impl cosmic::Application for AppModel {
     fn view(&self) -> Element<'_, Self::Message> {
         let space_s = cosmic::theme::spacing().space_s;
         let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
-            Page::Page1 => {
+            Page::NowPlaying => {
                 let header = widget::text::title1("COSMIC Now Playing");
 
                 let album_art = self
@@ -193,34 +193,6 @@ impl cosmic::Application for AppModel {
                 widget::column::with_capacity(2)
                     .push(header)
                     .push(content)
-                    .spacing(space_s)
-                    .height(Length::Fill)
-                    .into()
-            }
-
-            Page::Page2 => {
-                let header = widget::row::with_capacity(2)
-                    .push(widget::text::title1(fl!("welcome")))
-                    .push(widget::text::title3(fl!("page-id", num = 2)))
-                    .align_y(Alignment::End)
-                    .spacing(space_s);
-
-                widget::column::with_capacity(1)
-                    .push(header)
-                    .spacing(space_s)
-                    .height(Length::Fill)
-                    .into()
-            }
-
-            Page::Page3 => {
-                let header = widget::row::with_capacity(2)
-                    .push(widget::text::title1(fl!("welcome")))
-                    .push(widget::text::title3(fl!("page-id", num = 3)))
-                    .align_y(Alignment::End)
-                    .spacing(space_s);
-
-                widget::column::with_capacity(1)
-                    .push(header)
                     .spacing(space_s)
                     .height(Length::Fill)
                     .into()
@@ -362,9 +334,7 @@ impl AppModel {
 
 /// The page to display in the application.
 pub enum Page {
-    Page1,
-    Page2,
-    Page3,
+    NowPlaying,
 }
 
 /// The context page to display in the context drawer.
