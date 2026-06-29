@@ -44,10 +44,10 @@ pub enum Message {
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
     RefreshTrack(TrackInfo),
-
     PreviousTrack,
     PlayPause,
     NextTrack,
+    SeekChanged(f32),
 }
 
 /// Create a COSMIC application from the app model
@@ -62,7 +62,7 @@ impl cosmic::Application for AppModel {
     type Message = Message;
 
     /// Unique identifier in RDNN (reverse domain name notation) format.
-    const APP_ID: &'static str = "dev.mmurphy.Test";
+    const APP_ID: &'static str = "ca.gbrandel.cosmic-now-playing";
 
     fn core(&self) -> &cosmic::Core {
         &self.core
@@ -127,7 +127,7 @@ impl cosmic::Application for AppModel {
     /// Elements to pack at the start of the header bar.
     fn header_start(&self) -> Vec<Element<'_, Self::Message>> {
         let menu_bar = menu::bar(vec![menu::Tree::with_children(
-            menu::root(fl!("Now Playing")).apply(Element::from),
+            menu::root("COSMIC Now Playing").apply(Element::from),
             menu::items(
                 &self.key_binds,
                 vec![menu::Item::Button(fl!("about"), None, MenuAction::About)],
@@ -165,8 +165,6 @@ impl cosmic::Application for AppModel {
         let space_s = cosmic::theme::spacing().space_s;
         let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
             Page::NowPlaying => {
-                let header = widget::text::title1("COSMIC Now Playing");
-
                 let album_art = self
                     .track
                     .art_path()
@@ -196,10 +194,39 @@ impl cosmic::Application for AppModel {
                     )
                     .spacing(space_s);
 
-                let track_details = widget::column::with_capacity(4)
+                let progress = self
+                    .track
+                    .length
+                    .map(|length| {
+                        let length_secs = length.as_secs_f32();
+                        if length_secs > 0.0 {
+                            (self.track.position.as_secs_f32() / length_secs).clamp(0.0, 1.0)
+                        } else {
+                            0.0
+                        }
+                    })
+                    .unwrap_or(0.0);
+
+                let progress_slider = widget::slider(0.0..=1.0, progress, Message::SeekChanged);
+
+                let time_row = widget::row::with_capacity(3)
+                    .push(widget::text::caption(TrackInfo::format_duration(
+                        self.track.position,
+                    )))
+                    .push(cosmic::iced::widget::Space::new().width(Length::Fill))
+                    .push(widget::text::caption(
+                        self.track
+                            .length
+                            .map(TrackInfo::format_duration)
+                            .unwrap_or_else(|| "--:--".to_string()),
+                    ));
+
+                let track_details = widget::column::with_capacity(6)
                     .push(widget::text::title2(self.track.title.as_str()))
                     .push(widget::text::body(self.track.artist.as_str()))
                     .push(widget::text::body(self.track.album.as_str()))
+                    .push(progress_slider)
+                    .push(time_row)
                     .push(controls)
                     .spacing(space_s);
 
@@ -210,7 +237,6 @@ impl cosmic::Application for AppModel {
                     .align_y(Alignment::Center);
 
                 widget::column::with_capacity(2)
-                    .push(header)
                     .push(content)
                     .spacing(space_s)
                     .height(Length::Fill)
@@ -299,6 +325,10 @@ impl cosmic::Application for AppModel {
             }
             Message::RefreshTrack(track) => {
                 self.track = track;
+            }
+
+            Message::SeekChanged(value) => {
+                let _ = value;
             }
 
             Message::ToggleContextPage(context_page) => {

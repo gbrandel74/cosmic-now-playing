@@ -1,5 +1,6 @@
 use mpris::PlaybackStatus;
 use mpris::PlayerFinder;
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub struct TrackInfo {
@@ -8,6 +9,8 @@ pub struct TrackInfo {
     pub album: String,
     pub art_url: Option<String>,
     pub playback_status: PlaybackStatus,
+    pub position: Duration,
+    pub length: Option<Duration>,
 }
 
 impl TrackInfo {
@@ -18,7 +21,17 @@ impl TrackInfo {
             album: "—".into(),
             art_url: None,
             playback_status: PlaybackStatus::Stopped,
+            position: Duration::ZERO,
+            length: None,
         }
+    }
+
+    pub fn format_duration(duration: Duration) -> String {
+        let total_seconds = duration.as_secs();
+        let minutes = total_seconds / 60;
+        let seconds = total_seconds % 60;
+
+        format!("{minutes}:{seconds:02}")
     }
 
     pub fn current() -> Self {
@@ -45,6 +58,8 @@ impl TrackInfo {
             playback_status: player
                 .get_playback_status()
                 .unwrap_or(PlaybackStatus::Stopped),
+            position: player.get_position().unwrap_or(Duration::ZERO),
+            length: metadata.length(),
         }
     }
 
