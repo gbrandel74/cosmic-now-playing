@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Cosmic Now Playing
+Comment=A native media companion for the COSMIC desktop.
+Type=Application
+Icon=ca.gbrandel.cosmic-now-playing
+Exec=cosmic-now-playing %F
+Terminal=false
+StartupNotify=true
+Categories=COSMIC
+Keywords=COSMIC
+MimeType=
