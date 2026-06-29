@@ -41,4 +41,11 @@ impl TrackInfo {
             art_url: metadata.art_url().map(|url| url.to_string()),
         }
     }
+
+    pub fn art_path(&self) -> Option<String> {
+        self.art_url
+            .as_deref()
+            .and_then(|url| url.strip_prefix("file://"))
+            .map(|path| path.to_string())
+    }
 }

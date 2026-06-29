@@ -6,12 +6,12 @@ use crate::mpris::TrackInfo;
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::alignment::{Horizontal, Vertical};
+use cosmic::iced::widget::image;
 use cosmic::iced::{Alignment, Length, Subscription, futures};
 use cosmic::prelude::*;
 use cosmic::widget::{self, about::About, icon, menu, nav_bar};
 use futures::SinkExt;
 use std::collections::HashMap;
-use std::time::Duration;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 const APP_ICON: &[u8] = include_bytes!("../resources/icons/hicolor/scalable/apps/icon.svg");
@@ -41,7 +41,7 @@ pub enum Message {
     LaunchUrl(String),
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
-    RefreshTrack,
+    RefreshTrack(TrackInfo),
 }
 
 /// Create a COSMIC application from the app model
@@ -167,51 +167,55 @@ impl cosmic::Application for AppModel {
     /// events received by widgets will be passed to the update method.
     fn view(&self) -> Element<'_, Self::Message> {
         let space_s = cosmic::theme::spacing().space_s;
-        let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
-            Page::Page1 => {
-                let header = widget::row::with_capacity(2)
-                    .push(widget::text::title1("COSMIC Now Playing"))
-                    .align_y(Alignment::End)
-                    .spacing(space_s);
+        let content: Element<_> =
+            match self.nav.active_data::<Page>().unwrap() {
+                Page::Page1 => {
+                    let header = widget::row::with_capacity(2)
+                        .push(widget::text::title1("COSMIC Now Playing"))
+                        .align_y(Alignment::End)
+                        .spacing(space_s);
 
-                widget::column::with_capacity(4)
-                    .push(header)
-                    .push(widget::text::title3(self.track.title.as_str()))
-                    .push(widget::text::body(self.track.artist.as_str()))
-                    .push(widget::text::body(self.track.album.as_str()))
-                    .spacing(space_s)
-                    .height(Length::Fill)
-                    .into()
-            }
+                    widget::column::with_capacity(5)
+                        .push_maybe(self.track.art_path().map(|path| {
+                            image(image::Handle::from_path(path)).width(120).height(120)
+                        }))
+                        .push(header)
+                        .push(widget::text::title3(self.track.title.as_str()))
+                        .push(widget::text::body(self.track.artist.as_str()))
+                        .push(widget::text::body(self.track.album.as_str()))
+                        .spacing(space_s)
+                        .height(Length::Fill)
+                        .into()
+                }
 
-            Page::Page2 => {
-                let header = widget::row::with_capacity(2)
-                    .push(widget::text::title1(fl!("welcome")))
-                    .push(widget::text::title3(fl!("page-id", num = 2)))
-                    .align_y(Alignment::End)
-                    .spacing(space_s);
+                Page::Page2 => {
+                    let header = widget::row::with_capacity(2)
+                        .push(widget::text::title1(fl!("welcome")))
+                        .push(widget::text::title3(fl!("page-id", num = 2)))
+                        .align_y(Alignment::End)
+                        .spacing(space_s);
 
-                widget::column::with_capacity(1)
-                    .push(header)
-                    .spacing(space_s)
-                    .height(Length::Fill)
-                    .into()
-            }
+                    widget::column::with_capacity(1)
+                        .push(header)
+                        .spacing(space_s)
+                        .height(Length::Fill)
+                        .into()
+                }
 
-            Page::Page3 => {
-                let header = widget::row::with_capacity(2)
-                    .push(widget::text::title1(fl!("welcome")))
-                    .push(widget::text::title3(fl!("page-id", num = 3)))
-                    .align_y(Alignment::End)
-                    .spacing(space_s);
+                Page::Page3 => {
+                    let header = widget::row::with_capacity(2)
+                        .push(widget::text::title1(fl!("welcome")))
+                        .push(widget::text::title3(fl!("page-id", num = 3)))
+                        .align_y(Alignment::End)
+                        .spacing(space_s);
 
-                widget::column::with_capacity(1)
-                    .push(header)
-                    .spacing(space_s)
-                    .height(Length::Fill)
-                    .into()
-            }
-        };
+                    widget::column::with_capacity(1)
+                        .push(header)
+                        .spacing(space_s)
+                        .height(Length::Fill)
+                        .into()
+                }
+            };
 
         widget::container(content)
             .width(600)
@@ -244,16 +248,18 @@ impl cosmic::Application for AppModel {
                 }),
         ];
 
-        // Refresh track metadata every second.
+        // Refresh track metadata periodically.
         subscriptions.push(Subscription::run(|| {
             cosmic::iced::stream::channel(
                 1,
                 |mut emitter: futures::channel::mpsc::Sender<_>| async move {
-                    let mut interval = tokio::time::interval(Duration::from_secs(1));
+                    let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
 
                     loop {
                         interval.tick().await;
-                        _ = emitter.send(Message::RefreshTrack).await;
+                        _ = emitter
+                            .send(Message::RefreshTrack(TrackInfo::current()))
+                            .await;
                     }
                 },
             )
@@ -268,8 +274,8 @@ impl cosmic::Application for AppModel {
     /// on the application's async runtime.
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
-            Message::RefreshTrack => {
-                self.track = TrackInfo::current();
+            Message::RefreshTrack(track) => {
+                self.track = track;
             }
 
             Message::ToggleContextPage(context_page) => {
@@ -289,9 +295,7 @@ impl cosmic::Application for AppModel {
 
             Message::LaunchUrl(url) => match open::that_detached(&url) {
                 Ok(()) => {}
-                Err(err) => {
-                    eprintln!("failed to open {url:?}: {err}");
-                }
+                Err(_) => {}
             },
         }
         Task::none()
