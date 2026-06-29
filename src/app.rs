@@ -33,10 +33,6 @@ pub struct AppModel {
     config: Config,
     /// Track info
     track: TrackInfo,
-    /// Time active
-    time: u32,
-    /// Toggle the watch subscription
-    watch_is_active: bool,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -45,7 +41,7 @@ pub enum Message {
     LaunchUrl(String),
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
-    WatchTick(u32),
+    RefreshTrack,
 }
 
 /// Create a COSMIC application from the app model
@@ -124,9 +120,6 @@ impl cosmic::Application for AppModel {
                 .unwrap_or_default(),
 
             track: TrackInfo::current(),
-
-            time: 0,
-            watch_is_active: false,
         };
 
         // Create a startup command that sets the window title.
@@ -251,24 +244,20 @@ impl cosmic::Application for AppModel {
                 }),
         ];
 
-        // Conditionally enables a timer that emits a message every second.
-        if self.watch_is_active {
-            subscriptions.push(Subscription::run(|| {
-                cosmic::iced::stream::channel(
-                    1,
-                    |mut emitter: futures::channel::mpsc::Sender<_>| async move {
-                        let mut time = 1;
-                        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        // Refresh track metadata every second.
+        subscriptions.push(Subscription::run(|| {
+            cosmic::iced::stream::channel(
+                1,
+                |mut emitter: futures::channel::mpsc::Sender<_>| async move {
+                    let mut interval = tokio::time::interval(Duration::from_secs(1));
 
-                        loop {
-                            interval.tick().await;
-                            _ = emitter.send(Message::WatchTick(time)).await;
-                            time += 1;
-                        }
-                    },
-                )
-            }));
-        }
+                    loop {
+                        interval.tick().await;
+                        _ = emitter.send(Message::RefreshTrack).await;
+                    }
+                },
+            )
+        }));
 
         Subscription::batch(subscriptions)
     }
@@ -279,8 +268,8 @@ impl cosmic::Application for AppModel {
     /// on the application's async runtime.
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
-            Message::WatchTick(time) => {
-                self.time = time;
+            Message::RefreshTrack => {
+                self.track = TrackInfo::current();
             }
 
             Message::ToggleContextPage(context_page) => {
