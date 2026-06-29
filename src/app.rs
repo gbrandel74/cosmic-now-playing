@@ -5,6 +5,7 @@ use crate::fl;
 use crate::mpris::TrackInfo;
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
+use cosmic::iced::Size;
 use cosmic::iced::alignment::{Horizontal, Vertical};
 use cosmic::iced::widget::image;
 use cosmic::iced::{Alignment, Length, Subscription, futures};
@@ -35,6 +36,8 @@ pub struct AppModel {
     config: Config,
     /// Track info
     track: TrackInfo,
+    /// Window size
+    window_size: Size,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -48,6 +51,7 @@ pub enum Message {
     PlayPause,
     NextTrack,
     SeekChanged(f32),
+    WindowResized(Size),
 }
 
 /// Create a COSMIC application from the app model
@@ -114,8 +118,8 @@ impl cosmic::Application for AppModel {
                     }
                 })
                 .unwrap_or_default(),
-
             track: TrackInfo::current(),
+            window_size: Size::new(600.0, 400.0),
         };
 
         // Create a startup command that sets the window title.
@@ -165,10 +169,11 @@ impl cosmic::Application for AppModel {
         let space_s = cosmic::theme::spacing().space_s;
         let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
             Page::NowPlaying => {
-                let album_art = self
-                    .track
-                    .art_path()
-                    .map(|path| image(image::Handle::from_path(path)).width(200).height(200));
+                let album_art = self.track.art_path().map(|path| {
+                    image(image::Handle::from_path(path))
+                        .width(self.album_art_size())
+                        .height(self.album_art_size())
+                });
 
                 let controls = widget::row::with_capacity(3)
                     .push(
@@ -273,6 +278,7 @@ impl cosmic::Application for AppModel {
 
                     Message::UpdateConfig(update.config)
                 }),
+            cosmic::iced::window::resize_events().map(|(_id, size)| Message::WindowResized(size)),
         ];
 
         // Refresh track metadata periodically.
@@ -331,6 +337,10 @@ impl cosmic::Application for AppModel {
                 let _ = value;
             }
 
+            Message::WindowResized(size) => {
+                self.window_size = size;
+            }
+
             Message::ToggleContextPage(context_page) => {
                 if self.context_page == context_page {
                     // Close the context drawer if the toggled context page is the same.
@@ -377,6 +387,18 @@ impl AppModel {
             self.set_window_title(window_title, id)
         } else {
             Task::none()
+        }
+    }
+
+    pub fn album_art_size(&self) -> u16 {
+        let width = self.window_size.width;
+
+        if width < 500.0 {
+            140
+        } else if width < 800.0 {
+            200
+        } else {
+            280
         }
     }
 }
