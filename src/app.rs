@@ -138,7 +138,7 @@ impl cosmic::Application for AppModel {
 
     /// Enables the COSMIC application to create a nav bar with this model.
     fn nav_model(&self) -> Option<&nav_bar::Model> {
-        Some(&self.nav)
+        None
     }
 
     /// Display a context drawer if the context page is requested.
