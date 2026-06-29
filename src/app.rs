@@ -226,7 +226,17 @@ impl cosmic::Application for AppModel {
                             .unwrap_or_else(|| "--:--".to_string()),
                     ));
 
-                let track_details = widget::column::with_capacity(6)
+                let playback_section = widget::column::with_capacity(3)
+                    .push(progress_slider)
+                    .push(time_row)
+                    .push(
+                        widget::container(controls)
+                            .width(Length::Fill)
+                            .center_x(Length::Fill),
+                    )
+                    .spacing(8);
+
+                let track_details = widget::column::with_capacity(8)
                     .push(widget::text::title2(self.track.title.as_str()))
                     .push(widget::text::body(self.track.artist.as_str()))
                     .push_maybe(
@@ -234,27 +244,38 @@ impl cosmic::Application for AppModel {
                             && self.track.album != "Unknown album")
                             .then(|| widget::text::body(self.track.album.as_str())),
                     )
-                    .push(progress_slider)
-                    .push(time_row)
-                    .push(controls)
+                    // Gap before progress
+                    .push(cosmic::iced::widget::Space::new().height(12))
+                    .push(cosmic::iced::widget::Space::new().height(12))
+                    .push(playback_section)
                     .spacing(space_s);
 
-                let content = widget::row::with_capacity(2)
-                    .push_maybe(album_art)
-                    .push(track_details.width(Length::Fill))
-                    .spacing(space_s)
-                    .align_y(Alignment::Center);
+                let content: Element<_> = if self.compact_layout() {
+                    widget::column::with_capacity(2)
+                        .push_maybe(album_art)
+                        .push(track_details.width(Length::Fill))
+                        .spacing(space_s)
+                        .align_x(Horizontal::Center)
+                        .into()
+                } else {
+                    widget::row::with_capacity(2)
+                        .push_maybe(album_art)
+                        .push(track_details.width(Length::Fill))
+                        .spacing(space_s)
+                        .align_y(Alignment::Center)
+                        .into()
+                };
 
-                widget::column::with_capacity(2)
-                    .push(content)
-                    .spacing(space_s)
+                widget::container(widget::container(content).padding([20, 20, 20, 20]))
+                    .width(Length::Fill)
                     .height(Length::Fill)
+                    .align_x(Horizontal::Left)
+                    .align_y(Vertical::Top)
                     .into()
             }
         };
 
         widget::container(content)
-            .width(600)
             .height(Length::Fill)
             .apply(widget::container)
             .width(Length::Fill)
@@ -404,6 +425,10 @@ impl AppModel {
         } else {
             280
         }
+    }
+
+    pub fn compact_layout(&self) -> bool {
+        self.window_size.width < 650.0
     }
 }
 
