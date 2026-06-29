@@ -5,6 +5,7 @@ pub struct TrackInfo {
     pub title: String,
     pub artist: String,
     pub album: String,
+    pub art_url: Option<String>,
 }
 
 impl TrackInfo {
@@ -13,6 +14,7 @@ impl TrackInfo {
             title: "No track playing".into(),
             artist: "—".into(),
             album: "—".into(),
+            art_url: None,
         }
     }
 
@@ -36,6 +38,7 @@ impl TrackInfo {
                 .map(|artists| artists.join(", "))
                 .unwrap_or_else(|| "Unknown artist".to_string()),
             album: metadata.album_name().unwrap_or("Unknown album").to_string(),
+            art_url: metadata.art_url().map(|url| url.to_string()),
         }
     }
 }
