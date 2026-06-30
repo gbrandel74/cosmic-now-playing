@@ -2,6 +2,26 @@ use mpris::PlaybackStatus;
 use mpris::PlayerFinder;
 use std::time::Duration;
 
+impl std::fmt::Display for PlayerInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.identity)
+    }
+}
+
+fn friendly_player_name(identity: &str) -> String {
+    match identity {
+        "com.github.th-ch.youtube-music" => "YouTube Music".to_string(),
+        "Mozilla firefox" => "Firefox".to_string(),
+        other => other.to_string(),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayerInfo {
+    pub bus_name: String,
+    pub identity: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct TrackInfo {
     pub title: String,
@@ -43,6 +63,16 @@ impl TrackInfo {
             return Self::placeholder();
         };
 
+        Self::from_player(&player)
+    }
+
+    pub fn art_path(&self) -> Option<String> {
+        self.art_url
+            .as_deref()
+            .and_then(|url| url.strip_prefix("file://"))
+            .map(|path| path.to_string())
+    }
+    pub fn from_player(player: &mpris::Player) -> Self {
         let Ok(metadata) = player.get_metadata() else {
             return Self::placeholder();
         };
@@ -57,16 +87,36 @@ impl TrackInfo {
             art_url: metadata.art_url().map(|url| url.to_string()),
             playback_status: player
                 .get_playback_status()
-                .unwrap_or(PlaybackStatus::Stopped),
-            position: player.get_position().unwrap_or(Duration::ZERO),
+                .unwrap_or(mpris::PlaybackStatus::Stopped),
+            position: player.get_position().unwrap_or(std::time::Duration::ZERO),
             length: metadata.length(),
         }
     }
+}
 
-    pub fn art_path(&self) -> Option<String> {
-        self.art_url
-            .as_deref()
-            .and_then(|url| url.strip_prefix("file://"))
-            .map(|path| path.to_string())
-    }
+pub fn available_players() -> Vec<PlayerInfo> {
+    let Ok(finder) = PlayerFinder::new() else {
+        return Vec::new();
+    };
+
+    let Ok(players) = finder.find_all() else {
+        return Vec::new();
+    };
+
+    players
+        .into_iter()
+        .map(|player| PlayerInfo {
+            bus_name: player.bus_name().to_string(),
+            identity: friendly_player_name(player.identity()),
+        })
+        .collect()
+}
+
+pub fn player_by_bus_name(bus_name: &str) -> Option<mpris::Player> {
+    let finder = PlayerFinder::new().ok()?;
+    let players = finder.find_all().ok()?;
+
+    players
+        .into_iter()
+        .find(|player| player.bus_name() == bus_name)
 }

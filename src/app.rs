@@ -2,7 +2,7 @@
 
 use crate::config::Config;
 use crate::fl;
-use crate::mpris::TrackInfo;
+use crate::mpris::{PlayerInfo, TrackInfo, available_players};
 use cosmic::app::context_drawer;
 use cosmic::cosmic_config::{self, CosmicConfigEntry};
 use cosmic::iced::Size;
@@ -12,8 +12,7 @@ use cosmic::iced::{Alignment, Length, Subscription, futures};
 use cosmic::prelude::*;
 use cosmic::widget::{self, about::About, icon, menu, nav_bar};
 use futures::SinkExt;
-use mpris::PlaybackStatus;
-use mpris::PlayerFinder;
+use mpris::{PlaybackStatus, Player, PlayerFinder};
 use std::collections::HashMap;
 
 const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
@@ -38,6 +37,10 @@ pub struct AppModel {
     track: TrackInfo,
     /// Window size
     window_size: Size,
+    /// Currently available players
+    players: Vec<PlayerInfo>,
+    /// Currently selected player
+    selected_player: Option<PlayerInfo>,
 }
 
 /// Messages emitted by the application and its widgets.
@@ -46,8 +49,9 @@ pub enum Message {
     LaunchUrl(String),
     ToggleContextPage(ContextPage),
     UpdateConfig(Config),
-    RefreshTrack(TrackInfo),
+    Refresh,
     PreviousTrack,
+    PlayerSelected(PlayerInfo),
     PlayPause,
     NextTrack,
     SeekChanged(f32),
@@ -119,6 +123,8 @@ impl cosmic::Application for AppModel {
                 })
                 .unwrap_or_default(),
             track: TrackInfo::current(),
+            players: available_players(),
+            selected_player: None,
             window_size: Size::new(600.0, 400.0),
         };
 
@@ -169,11 +175,34 @@ impl cosmic::Application for AppModel {
         let space_s = cosmic::theme::spacing().space_s;
         let content: Element<_> = match self.nav.active_data::<Page>().unwrap() {
             Page::NowPlaying => {
-                let album_art = self.track.art_path().map(|path| {
+                let album_art: Element<_> = if let Some(path) = self.track.art_path() {
                     image(image::Handle::from_path(path))
                         .width(self.album_art_size())
                         .height(self.album_art_size())
-                });
+                        .into()
+                } else {
+                    widget::container(widget::text::title1("♪"))
+                        .width(self.album_art_size())
+                        .height(self.album_art_size())
+                        .align_x(Horizontal::Center)
+                        .align_y(Vertical::Center)
+                        .into()
+                };
+
+                let player_options = self.players.clone();
+
+                let player_selector = if player_options.len() > 1 {
+                    Some(
+                        cosmic::iced::widget::pick_list(
+                            player_options,
+                            self.selected_player.clone(),
+                            Message::PlayerSelected,
+                        )
+                        .width(Length::Shrink),
+                    )
+                } else {
+                    None
+                };
 
                 let controls = widget::row::with_capacity(3)
                     .push(
@@ -237,6 +266,7 @@ impl cosmic::Application for AppModel {
                     .spacing(8);
 
                 let track_details = widget::column::with_capacity(8)
+                    .push_maybe(player_selector)
                     .push(widget::text::title2(self.track.title.as_str()))
                     .push(widget::text::body(self.track.artist.as_str()))
                     .push_maybe(
@@ -246,20 +276,19 @@ impl cosmic::Application for AppModel {
                     )
                     // Gap before progress
                     .push(cosmic::iced::widget::Space::new().height(12))
-                    .push(cosmic::iced::widget::Space::new().height(12))
                     .push(playback_section)
                     .spacing(space_s);
 
                 let content: Element<_> = if self.compact_layout() {
                     widget::column::with_capacity(2)
-                        .push_maybe(album_art)
+                        .push(album_art)
                         .push(track_details.width(Length::Fill))
                         .spacing(space_s)
                         .align_x(Horizontal::Center)
                         .into()
                 } else {
                     widget::row::with_capacity(2)
-                        .push_maybe(album_art)
+                        .push(album_art)
                         .push(track_details.width(Length::Fill))
                         .spacing(space_s)
                         .align_y(Alignment::Center)
@@ -315,9 +344,7 @@ impl cosmic::Application for AppModel {
 
                     loop {
                         interval.tick().await;
-                        _ = emitter
-                            .send(Message::RefreshTrack(TrackInfo::current()))
-                            .await;
+                        _ = emitter.send(Message::Refresh).await;
                     }
                 },
             )
@@ -333,29 +360,28 @@ impl cosmic::Application for AppModel {
     fn update(&mut self, message: Self::Message) -> Task<cosmic::Action<Self::Message>> {
         match message {
             Message::PreviousTrack => {
-                if let Ok(finder) = PlayerFinder::new() {
-                    if let Ok(player) = finder.find_active() {
-                        let _ = player.previous();
-                    }
+                if let Some(player) = self.current_player() {
+                    let _ = player.previous();
                 }
             }
             Message::PlayPause => {
-                if let Ok(finder) = PlayerFinder::new() {
-                    if let Ok(player) = finder.find_active() {
-                        let _ = player.play_pause();
-                    }
+                if let Some(player) = self.current_player() {
+                    let _ = player.play_pause();
                 }
             }
-
             Message::NextTrack => {
-                if let Ok(finder) = PlayerFinder::new() {
-                    if let Ok(player) = finder.find_active() {
-                        let _ = player.next();
-                    }
+                if let Some(player) = self.current_player() {
+                    let _ = player.next();
                 }
             }
-            Message::RefreshTrack(track) => {
-                self.track = track;
+            Message::Refresh => {
+                if let Some(player) = self.current_player() {
+                    self.track = TrackInfo::from_player(&player);
+                } else {
+                    self.track = TrackInfo::placeholder();
+                }
+
+                self.players = available_players();
             }
 
             Message::SeekChanged(value) => {
@@ -364,6 +390,10 @@ impl cosmic::Application for AppModel {
 
             Message::WindowResized(size) => {
                 self.window_size = size;
+            }
+
+            Message::PlayerSelected(player) => {
+                self.selected_player = Some(player);
             }
 
             Message::ToggleContextPage(context_page) => {
@@ -429,6 +459,14 @@ impl AppModel {
 
     pub fn compact_layout(&self) -> bool {
         self.window_size.width < 650.0
+    }
+
+    fn current_player(&self) -> Option<Player> {
+        if let Some(player) = &self.selected_player {
+            crate::mpris::player_by_bus_name(&player.bus_name)
+        } else {
+            PlayerFinder::new().ok()?.find_active().ok()
+        }
     }
 }
 
